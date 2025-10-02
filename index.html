@@ -1,10 +1,269 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8">
-  <title>Můj první web</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kamery + Ephemeridy (demo)</title>
+
+  <!-- Zákaz indexace vyhledávači -->
+  <meta name="robots" content="noindex, nofollow" />
+
+  <style>
+    :root{
+      --bg:#000; --panel:#121212; --muted:#2a2a2a; --text:#fff; --accent:#7dd3fc;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;background:var(--bg);color:var(--text)}
+    header{padding:16px 20px;border-bottom:1px solid var(--muted);position:sticky;top:0;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);z-index:20}
+    header h1{margin:0;font-size:20px}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+
+    .tabs{display:flex;gap:8px;margin-bottom:16px}
+    .tab{padding:8px 12px;border:1px solid var(--muted);border-radius:999px;cursor:pointer}
+    .tab.aktivni{background:var(--accent);color:#000;border-color:transparent}
+    .panel{display:none}
+    .panel.aktivni{display:block}
+
+    /* Galerie kamer */
+    .mrizka{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+    .karta{background:var(--panel);border:1px solid var(--muted);border-radius:12px;overflow:hidden}
+    .karta .medium{width:100%;height:220px;display:block;border:0}
+    .karta .telo{padding:10px;font-size:14px;color:#ddd}
+
+    /* Fullscreen */
+    .fullscreen{position:fixed;inset:0;background:#000;display:none;align-items:center;justify-content:center;z-index:50}
+    .fullscreen > *{max-width:100vw;max-height:100vh;border:0}
+
+    /* Form + tabulka */
+    form.ovladani{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px}
+    label{display:flex;flex-direction:column;gap:6px;font-size:14px}
+    input,select,button{background:#0f0f0f;border:1px solid var(--muted);color:#fff;border-radius:8px;padding:8px}
+    button{cursor:pointer}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:8px;border-bottom:1px solid var(--muted);text-align:left;white-space:nowrap}
+    tbody tr:hover{background:#0f0f0f}
+    .poznamka{font-size:12px;color:#bbb}
+    footer{border-top:1px solid var(--muted);padding:16px 20px;color:#bbb}
+    a{color:var(--accent)}
+  </style>
 </head>
 <body>
-  <h1>Ahoj, web běží!</h1>
+  <header>
+    <h1>Kamery Novohradské hory + Ephemeridy (GitHub Pages, bez indexace)</h1>
+  </header>
+
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab aktivni" data-cil="#panel-kamery">Kamery</button>
+      <button class="tab" data-cil="#panel-ephemeridy">Ephemeridy</button>
+    </div>
+
+    <!-- Panel: Kamery -->
+    <section class="panel aktivni" id="panel-kamery">
+      <div id="kontajner-kamer" class="mrizka"></div>
+      <div class="fullscreen" id="fs"></div>
+      <p class="poznamka">Pozn.: Některé weby (např. Panomax) mohou blokovat vložení do &lt;iframe&gt;. Kliknutím na kartu se otevřou na celé obrazovce; pokud se neembedují, alespoň se rychle otevře samostatná stránka.</p>
+    </section>
+
+    <!-- Panel: Ephemeridy -->
+    <section class="panel" id="panel-ephemeridy">
+      <form class="ovladani" id="formular">
+        <label>Souřadnice (lat)
+          <input id="vstup-lat" type="number" step="0.000001" value="48.7570" />
+        </label>
+        <label>Souřadnice (lon)
+          <input id="vstup-lon" type="number" step="0.000001" value="14.8885" />
+        </label>
+        <label>Počáteční datum
+          <input id="vstup-datum" type="date" />
+        </label>
+        <label>Počet dnů k zobrazení
+          <input id="vstup-dny" type="number" min="1" max="366" value="3" />
+        </label>
+        <label>Časová zóna
+          <select id="vstup-tz">
+            <option value="Europe/Prague" selected>Europe/Prague</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </label>
+        <div style="display:flex;align-items:end;gap:8px">
+          <button type="button" id="tl-vypocitej">Vypočítat</button>
+          <button type="button" id="tl-dnes3">Dnes + 3 dny</button>
+        </div>
+      </form>
+
+      <p class="poznamka">Výpočty probíhají čistě v prohlížeči (SunCalc) — ideální pro GitHub Pages / Cloudflare Pages zdarma.</p>
+
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Východ Slunce</th>
+              <th>Západ Slunce</th>
+              <th>Zač. naut. soumraku</th>
+              <th>Zač. astron. noci</th>
+              <th>Východ Měsíce</th>
+              <th>Západ Měsíce</th>
+            </tr>
+          </thead>
+          <tbody id="tb-ephemeridy"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <footer class="wrap">
+    <div class="poznamka">
+      Tato ukázka je připravená pro 100% bezplatné hostování. Indexaci brání meta tag <code>noindex</code> v &lt;head&gt;.
+      Pokud budeš chtít serverové funkce (API), můžeš později přejít na Vercel/Cloudflare Functions bez změn frontendu.
+    </div>
+  </footer>
+
+  <!-- SunCalc pro ephemeridy (CDN) -->
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+  <script>
+    // ======== Kamery ========
+    const odkazyKamer = [
+      "https://schafberg.panomax.com/",
+      "https://www.chmi.cz/files/portal/docs/meteo/kam/kostelni_myslova.jpg",
+      "https://www.chmi.cz/files/portal/docs/meteo/kam/temelin.jpg",
+      "https://www.chmi.cz/files/portal/docs/meteo/kam/ceske_budejovice.jpg",
+      "https://www.chmi.cz/files/portal/docs/meteo/kam/nove_hrady.jpg",
+      "https://hdwebcam.kirchbach.net/cam_talstation/P_480.jpg",
+      "https://webcam.zwettl.cc/image.jpg",
+      "https://www.stuetzi.at/wetter/webcam.jpg",
+      "https://www.hildner.at/1.jpg",
+      "https://www.wetter-hausruckviertel.at/webcam_frauenwieser/webcam/frauenwieser.jpg",
+      "https://liebenau.panomax.com/",
+      "https://www.zvonicehojnavoda.cz/images/webcam/webcam.jpg#joomlaImage://local-images/webcam/webcam.jpg?width=1600&height=1219",
+      "https://www.art.waldsoft.com/cam/current_ruine1.jpeg",
+      "https://webtv.feratel.com/webtv/?design=v3&cam=5075",
+      "https://vs1-secure.jhcomp.cz/stillimages/hejtman.jpg",
+      "https://www.wetter-hausruckviertel.at/webcam_karlstift/webcam/4k/cam0.jpg",
+      "https://www.meteoblue.com/cs/počasí/webcams/borovany_Česko_3078957",
+      "https://www.meteoblue.com/cs/počasí/webcams/hojná-voda_Česko_3075632",
+      "https://www.penzionzvon.cz/_kamera.aspx",
+      "https://www.meteoblue.com/cs/počasí/webcams/pohorská-ves_Česko_11921635",
+      "https://www.meteoblue.com/cs/počasí/webcams/suchdol-nad-lužnicí_Česko_3064742",
+      "https://www.meteoblue.com/cs/počasí/webcams/třeboň_Česko_3064079",
+      "https://www.halamky.cz/webova-kamera.html",
+      "https://api.dopravniinfo.cz/CameraImage.ashx?camera=2377",
+      "https://api.dopravniinfo.cz/CameraImage.ashx?camera=2378"
+    ];
+
+    const kontejnerKamer = document.getElementById('kontajner-kamer');
+    const fs = document.getElementById('fs');
+
+    function vytvorKartu(url){
+      const karta = document.createElement('div');
+      karta.className = 'karta';
+      const jeObrazek = /\.(jpg|jpeg|png|gif)(\?|$)/i.test(url);
+
+      let prvek;
+      if(jeObrazek){
+        prvek = document.createElement('img');
+        prvek.src = url;
+      }else{
+        prvek = document.createElement('iframe');
+        prvek.src = url;
+      }
+      prvek.className = 'medium';
+      karta.appendChild(prvek);
+
+      const telo = document.createElement('div');
+      telo.className = 'telo';
+      telo.textContent = url.replace(/^https?:\/\//,'');
+      karta.appendChild(telo);
+
+      karta.addEventListener('click',()=>otevriFs(url));
+      return karta;
+    }
+
+    function otevriFs(url){
+      fs.innerHTML = '';
+      const jeObrazek = /\.(jpg|jpeg|png|gif)(\?|$)/i.test(url);
+      const el = document.createElement(jeObrazek ? 'img' : 'iframe');
+      el.src = url;
+      fs.appendChild(el);
+      fs.style.display = 'flex';
+    }
+    fs.addEventListener('click',()=>{fs.style.display='none';fs.innerHTML='';});
+
+    odkazyKamer.forEach(u=>kontejnerKamer.appendChild(vytvorKartu(u)));
+
+    // ======== Ephemeridy ========
+    const tb = document.getElementById('tb-ephemeridy');
+    const vstupLat = document.getElementById('vstup-lat');
+    const vstupLon = document.getElementById('vstup-lon');
+    const vstupDatum = document.getElementById('vstup-datum');
+    const vstupDny = document.getElementById('vstup-dny');
+    const vstupTz = document.getElementById('vstup-tz');
+    const tlVypocitej = document.getElementById('tl-vypocitej');
+    const tlDnes3 = document.getElementById('tl-dnes3');
+
+    // default: dnes
+    vstupDatum.valueAsDate = new Date();
+
+    function formatujCas(d, tz){
+      if(!d) return '—';
+      try{
+        return new Intl.DateTimeFormat('cs-CZ', {hour:'2-digit', minute:'2-digit', timeZone: tz}).format(d);
+      }catch{ return '—'; }
+    }
+    function isoDen(d){ return d.toISOString().slice(0,10); }
+
+    function spocitejProDen(datumISO, lat, lon){
+      const t = SunCalc.getTimes(new Date(datumISO), lat, lon);
+      const m = SunCalc.getMoonTimes(new Date(datumISO), lat, lon, true);
+      return {
+        sunrise: t.sunrise,
+        sunset: t.sunset,
+        zacatekNautickeho: t.dusk,     // = konec občanského (začátek nautického)
+        zacatekAstronomickeNoci: t.night,
+        moonrise: m.rise || null,
+        moonset: m.set || null
+      };
+    }
+
+    function vykresli(){
+      const lat = parseFloat(vstupLat.value);
+      const lon = parseFloat(vstupLon.value);
+      const dny = Math.max(1, Math.min(366, parseInt(vstupDny.value || '3', 10)));
+      const tz = vstupTz.value || 'Europe/Prague';
+      const start = vstupDatum.value ? new Date(vstupDatum.value + 'T00:00:00') : new Date();
+
+      tb.innerHTML = '';
+      for(let i=0;i<dny;i++){
+        const d = new Date(start.getTime() + i*24*3600*1000);
+        const r = spocitejProDen(isoDen(d), lat, lon);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${new Intl.DateTimeFormat('cs-CZ',{dateStyle:'medium'}).format(d)}</td>
+          <td>${formatujCas(r.sunrise,tz)}</td>
+          <td>${formatujCas(r.sunset,tz)}</td>
+          <td>${formatujCas(r.zacatekNautickeho,tz)}</td>
+          <td>${formatujCas(r.zacatekAstronomickeNoci,tz)}</td>
+          <td>${formatujCas(r.moonrise,tz)}</td>
+          <td>${formatujCas(r.moonset,tz)}</td>
+        `;
+        tb.appendChild(tr);
+      }
+    }
+
+    tlVypocitej.addEventListener('click', vykresli);
+    tlDnes3.addEventListener('click', ()=>{ vstupDatum.valueAsDate = new Date(); vstupDny.value = 3; vykresli(); });
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t=>{
+      t.addEventListener('click',()=>{
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('aktivni'));
+        document.querySelectorAll('.panel').forEach(x=>x.classList.remove('aktivni'));
+        t.classList.add('aktivni');
+        document.querySelector(t.dataset.cil).classList.add('aktivni');
+        if(t.dataset.cil === '#panel-ephemeridy' && !tb.children.length) vykresli();
+      });
+    });
+  </script>
 </body>
 </html>
